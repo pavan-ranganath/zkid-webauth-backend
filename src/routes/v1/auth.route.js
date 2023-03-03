@@ -8,6 +8,9 @@ const router = express.Router();
 
 router.get('/generate-registration-options', validate(authValidation.simpleWebAuthnRegistration), authController.SimpleWebAuthnRegistration);
 router.post('/verify-registration', authController.SimpleWebAuthnVerifyRegistration);
+router.get('/generate-authentication-options',validate(authValidation.simpleWebAuthnRegistration), authController.SimpleWebAuthnLogin);
+router.post('/verify-authentication', authController.SimpleWebAuthnLoginVerify);
+
 
 router.post('/register', validate(authValidation.register), authController.register);
 router.post('/login', validate(authValidation.login), authController.login);

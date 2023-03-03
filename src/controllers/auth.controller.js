@@ -1,9 +1,13 @@
 const httpStatus = require('http-status');
 const catchAsync = require('../utils/catchAsync');
 const { authService, userService, tokenService, emailService } = require('../services');
-const { generateRegistrationOptions,verifyRegistrationResponse } = require('@simplewebauthn/server');
-const { v4: uuidv4 } = require('uuid');
+const { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse} = require('@simplewebauthn/server');
+const { isoUint8Array }  = require('@simplewebauthn/server/helpers');
 
+const { v4: uuidv4 } = require('uuid');
+const ApiError = require('../utils/ApiError');
+
+const base64url = require('base64url');
 
 
 // Human-readable title for your website
@@ -98,7 +102,7 @@ const SimpleWebAuthnRegistration = catchAsync(async (req, res) => {
    * after you verify an authenticator response.
    */
   req.session.currentChallenge = options.challenge;
-  req.session.user = {email:email,userId:userId}
+  req.session.user = { email: email, userId: userId }
   return res.send(options);
 });
 
@@ -110,7 +114,7 @@ const SimpleWebAuthnVerifyRegistration = catchAsync(async (req, res) => {
     const opts = {
       response: body,
       expectedChallenge: `${expectedChallenge}`,
-      expectedOrigin:origin,
+      expectedOrigin: origin,
       expectedRPID: rpID,
       requireUserVerification: true,
     };
@@ -130,11 +134,88 @@ const SimpleWebAuthnVerifyRegistration = catchAsync(async (req, res) => {
       transports: body.response.transports,
     };
     const userInSession = req.session.user;
-    const user = await userService.createUser({uniqueId:userInSession.userId,name:userInSession.email,email:userInSession.email,devices:[newDevice]});
+    const user = await userService.createUser({ uniqueId: userInSession.userId, name: userInSession.email, email: userInSession.email, devices: [newDevice] });
   }
   req.session.currentChallenge = undefined;
   res.status(httpStatus.CREATED).send({ verified });
 })
+
+const SimpleWebAuthnLogin = catchAsync(async (req, res) => {
+  let user = await authService.loginWithEmail(req.query.email);
+  if (!user) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+  }
+  const opts = {
+    timeout: 60000,
+    allowCredentials: user.devices.map(dev => ({
+      id: dev.credentialID.buffer,
+      type: 'public-key',
+      transports: dev.transports,
+    })),
+    userVerification: 'required',
+    rpID,
+  };
+  const options = generateAuthenticationOptions(opts);
+
+  /**
+   * The server needs to temporarily remember this value for verification, so don't lose it until
+   * after you verify an authenticator response.
+   */
+  req.session.user = user
+  req.session.currentChallenge = options.challenge;
+  res.send(options);
+})
+
+const SimpleWebAuthnLoginVerify = catchAsync(async (req, res) => {
+  const body = req.body;
+  const user = req.session.user;
+  const expectedChallenge = req.session.currentChallenge;
+  let dbAuthenticator;
+  const bodyCredIDBuffer = base64url.toBuffer(body.rawId);
+  // "Query the DB" here for an authenticator matching `credentialID`
+  for (const dev of user.devices) {
+    if (isoUint8Array.areEqual(base64url.toBuffer(dev.credentialID), bodyCredIDBuffer)) {
+      dbAuthenticator = dev;
+      break;
+    }
+  }
+
+  if (!dbAuthenticator) {
+    return res.status(400).send({ error: 'Authenticator is not registered with this site' });
+  }
+  let verification;
+  try {
+    const opts = {
+      response: body,
+      expectedChallenge: `${expectedChallenge}`,
+      expectedOrigin:origin,
+      expectedRPID: rpID,
+      authenticator: {
+        credentialPublicKey: base64url.toBuffer(dbAuthenticator.credentialPublicKey),
+        credentialID: base64url.toBuffer(dbAuthenticator.credentialID),
+        counter: dbAuthenticator.counter,
+        transports: dbAuthenticator.transports
+    },
+      requireUserVerification: true,
+    };
+    verification = await verifyAuthenticationResponse(opts);
+  } catch (error) {
+    const _error = error;
+    console.error(_error);
+    return res.status(400).send({ error: _error.message });
+  }
+
+  const { verified, authenticationInfo } = verification;
+
+  if (verified) {
+    // Update the authenticator's counter in the DB to the newest count in the authentication
+    dbAuthenticator.counter = authenticationInfo.newCounter;
+  }
+
+  req.session.currentChallenge = undefined;
+
+  res.send({ verified });
+}) 
 module.exports = {
   register,
   login,
@@ -145,5 +226,7 @@ module.exports = {
   sendVerificationEmail,
   verifyEmail,
   SimpleWebAuthnRegistration,
-  SimpleWebAuthnVerifyRegistration
+  SimpleWebAuthnVerifyRegistration,
+  SimpleWebAuthnLogin,
+  SimpleWebAuthnLoginVerify
 };
