@@ -6,6 +6,11 @@ const { roles } = require('../config/roles');
 
 const userSchema = mongoose.Schema(
   {
+    uniqueId: {
+      type: String,
+      required: true,
+      trim: true,
+    },
     name: {
       type: String,
       required: true,
@@ -23,6 +28,7 @@ const userSchema = mongoose.Schema(
         }
       },
     },
+    devices: []
   },
   {
     timestamps: true,

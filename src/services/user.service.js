@@ -37,6 +37,12 @@ const getUserById = async (id) => {
   return User.findById(id);
 };
 
+const checkEmailExists = async (email) =>{
+  if (await User.isEmailTaken(email)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Email already taken');
+  }
+}
+
 /**
  * Get user by email
  * @param {string} email
@@ -86,4 +92,5 @@ module.exports = {
   getUserByEmail,
   updateUserById,
   deleteUserById,
+  checkEmailExists
 };

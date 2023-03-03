@@ -90,10 +90,30 @@ const verifyEmail = async (verifyEmailToken) => {
   }
 };
 
+/**
+ * Login with email 
+ * @param {string} email
+ * @returns {Promise<User>}
+ */
+const loginWithEmail = async (email) => {
+  const user = await userService.getUserByEmail(email);
+  return user;
+};
+
+/**
+ * Check email exists
+ * @param {string} email
+ * @returns {Promise<User>}
+ */
+const checkEmail = async (email) => {
+  await userService.checkEmailExists(email);
+};
 module.exports = {
   loginUserWithEmailAndPassword,
   logout,
   refreshAuth,
   resetPassword,
   verifyEmail,
+  loginWithEmail,
+  checkEmail
 };

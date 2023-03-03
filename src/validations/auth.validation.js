@@ -49,6 +49,11 @@ const verifyEmail = {
   }),
 };
 
+const simpleWebAuthnRegistration = {
+  query: Joi.object().keys({
+    email: Joi.string().email().required(),
+  }),
+};
 module.exports = {
   register,
   login,
@@ -57,4 +62,5 @@ module.exports = {
   forgotPassword,
   resetPassword,
   verifyEmail,
+  simpleWebAuthnRegistration
 };

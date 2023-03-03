@@ -13,6 +13,9 @@ const { authLimiter } = require('./middlewares/rateLimiter');
 const routes = require('./routes/v1');
 const { errorConverter, errorHandler } = require('./middlewares/error');
 const ApiError = require('./utils/ApiError');
+var session = require('express-session')
+const MemoryStore = require('memorystore')(session)
+var cookieParser = require('cookie-parser')
 
 const app = express();
 
@@ -22,12 +25,13 @@ if (config.env !== 'test') {
 }
 
 // set security HTTP headers
-app.use(helmet());
+// app.use(helmet());
 
 // parse json request body
 app.use(express.json());
 
-// parse urlencoded request body
+
+// // parse urlencoded request body
 app.use(express.urlencoded({ extended: true }));
 
 // sanitize request data
@@ -41,9 +45,42 @@ app.use(compression());
 app.use(cors());
 app.options('*', cors());
 
+
+app.use(
+  session(
+    {
+    secret: 'b24ed0f617408d34f1d744095c752f3326699ad46fff89591aeb664237b5c1514',
+    resave: false,
+    saveUninitialized: true,
+    cookie: {
+      sameSite: true,
+      secure:false,
+      maxAge: 86400000,
+      httpOnly: true, // Ensure to not expose session cookies to clientside scripts
+    },
+    store: new MemoryStore({
+      checkPeriod: 86_400_000, // prune expired entries every 24h
+    }),
+  }
+  ),
+);
 // jwt authentication
 app.use(passport.initialize());
+// app.use(passport.session());
 passport.use('jwt', jwtStrategy);
+// app.use(function(request, response, next) {
+//   if (request.session && !request.session.regenerate) {
+//       request.session.regenerate = (cb) => {
+//           cb()
+//       }
+//   }
+//   if (request.session && !request.session.save) {
+//       request.session.save = (cb) => {
+//           cb()
+//       }
+//   }
+//   next()
+// })
 
 // limit repeated failed requests to auth endpoints
 if (config.env === 'production') {
