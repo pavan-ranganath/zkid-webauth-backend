@@ -54,8 +54,9 @@ app.use(
     saveUninitialized: true,
     cookie: {
       sameSite: true,
+      
       secure:false,
-      maxAge: 86400000,
+      maxAge: 360000,
       httpOnly: true, // Ensure to not expose session cookies to clientside scripts
     },
     store: new MemoryStore({

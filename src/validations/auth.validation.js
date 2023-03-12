@@ -54,6 +54,24 @@ const simpleWebAuthnRegistration = {
     email: Joi.string().email().required(),
   }),
 };
+
+const entradaAuthRegistration = {
+  body: Joi.object().keys({
+    username: Joi.string().email().required(),
+    name: Joi.string().required(),
+    publicKey: Joi.string().required(),
+  }),
+};
+const entradaAuthRegistrationVerify = {
+  body: Joi.object().keys({
+    plainMsg: Joi.string().required(),
+    signedMsg: Joi.string().required(),
+    encryptedChallengeWithShared: Joi.string().required(),
+    nonce: Joi.string().required(),
+  }),
+};
+
+
 module.exports = {
   register,
   login,
@@ -62,5 +80,7 @@ module.exports = {
   forgotPassword,
   resetPassword,
   verifyEmail,
-  simpleWebAuthnRegistration
+  simpleWebAuthnRegistration,
+  entradaAuthRegistration,
+  entradaAuthRegistrationVerify
 };

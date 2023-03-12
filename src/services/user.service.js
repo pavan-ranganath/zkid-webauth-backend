@@ -1,5 +1,5 @@
 const httpStatus = require('http-status');
-const { User } = require('../models');
+const { User, EntradaCustomUser } = require('../models');
 const ApiError = require('../utils/ApiError');
 
 /**
@@ -12,6 +12,19 @@ const createUser = async (userBody) => {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Email already taken');
   }
   return User.create(userBody);
+};
+
+
+/**
+ * Create a user
+ * @param {Object} userBody
+ * @returns {Promise<User>}
+ */
+const entradaMethodCreateUser = async (userBody) => {
+  if (await EntradaCustomUser.isEmailTaken(userBody.email)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Username already registered');
+  }
+  return EntradaCustomUser.create(userBody);
 };
 
 /**
@@ -92,5 +105,6 @@ module.exports = {
   getUserByEmail,
   updateUserById,
   deleteUserById,
-  checkEmailExists
+  checkEmailExists,
+  entradaMethodCreateUser
 };

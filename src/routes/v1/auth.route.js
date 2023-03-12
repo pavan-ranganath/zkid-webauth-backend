@@ -11,6 +11,9 @@ router.post('/verify-registration', authController.SimpleWebAuthnVerifyRegistrat
 router.get('/generate-authentication-options',validate(authValidation.simpleWebAuthnRegistration), authController.SimpleWebAuthnLogin);
 router.post('/verify-authentication', authController.SimpleWebAuthnLoginVerify);
 
+router.post('/generate-entrada-registration-options', validate(authValidation.entradaAuthRegistration), authController.EntadaAuthRegistration);
+router.post('/verify-entrada-registration', validate(authValidation.entradaAuthRegistrationVerify), authController.EntadaAuthRegistrationVerify);
+
 
 router.post('/register', validate(authValidation.register), authController.register);
 router.post('/login', validate(authValidation.login), authController.login);

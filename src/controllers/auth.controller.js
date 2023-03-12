@@ -1,15 +1,19 @@
 const httpStatus = require('http-status');
 const catchAsync = require('../utils/catchAsync');
 const { authService, userService, tokenService, emailService } = require('../services');
-const { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse} = require('@simplewebauthn/server');
-const { isoUint8Array }  = require('@simplewebauthn/server/helpers');
+const { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } = require('@simplewebauthn/server');
+const { isoUint8Array } = require('@simplewebauthn/server/helpers');
 
 const { v4: uuidv4 } = require('uuid');
 const ApiError = require('../utils/ApiError');
 
 const base64url = require('base64url');
+var libSodiumWrapper = require("libsodium-wrappers");
 
+const ed = require('@noble/ed25519')
+var tweetnaclUtil = require("tweetnacl-util");
 
+const { generateKeyPair, encrypt, signEncode, verifySign, sign, getSharedKey, decrypt,encryptWithSharedKey, decryptWithShared } = require('../middlewares/ed25519Wrapper')
 // Human-readable title for your website
 const rpName = 'Entada test SimpleWebAuthn';
 // A unique identifier for your website
@@ -64,7 +68,7 @@ const verifyEmail = catchAsync(async (req, res) => {
 
 const SimpleWebAuthnRegistration = catchAsync(async (req, res) => {
   const email = req.query.email;
-  await authService.checkEmail(email);
+  await authService.checkEmailExists(email);
   const userId = uuidv4();
   const opts = {
     rpName: rpName,
@@ -138,7 +142,7 @@ const SimpleWebAuthnVerifyRegistration = catchAsync(async (req, res) => {
   }
   req.session.currentChallenge = undefined;
   res.status(httpStatus.CREATED).send({ verified });
-})
+});
 
 const SimpleWebAuthnLogin = catchAsync(async (req, res) => {
   let user = await authService.loginWithEmail(req.query.email);
@@ -164,7 +168,7 @@ const SimpleWebAuthnLogin = catchAsync(async (req, res) => {
   req.session.user = user
   req.session.currentChallenge = options.challenge;
   res.send(options);
-})
+});
 
 const SimpleWebAuthnLoginVerify = catchAsync(async (req, res) => {
   const body = req.body;
@@ -188,14 +192,14 @@ const SimpleWebAuthnLoginVerify = catchAsync(async (req, res) => {
     const opts = {
       response: body,
       expectedChallenge: `${expectedChallenge}`,
-      expectedOrigin:origin,
+      expectedOrigin: origin,
       expectedRPID: rpID,
       authenticator: {
         credentialPublicKey: base64url.toBuffer(dbAuthenticator.credentialPublicKey),
         credentialID: base64url.toBuffer(dbAuthenticator.credentialID),
         counter: dbAuthenticator.counter,
         transports: dbAuthenticator.transports
-    },
+      },
       requireUserVerification: true,
     };
     verification = await verifyAuthenticationResponse(opts);
@@ -215,7 +219,90 @@ const SimpleWebAuthnLoginVerify = catchAsync(async (req, res) => {
   req.session.currentChallenge = undefined;
 
   res.send({ verified });
-}) 
+});
+
+const EntadaAuthRegistration = catchAsync(async (req, res) => {
+  const body = req.body;
+  const username = body.username;
+  const name = body.name;
+  const userPublicKey = tweetnaclUtil.decodeBase64(body.publicKey);
+  const userId = uuidv4();
+  // GENERATE CHALLENGE
+  const challenge = ed.utils.bytesToHex(ed.utils.randomPrivateKey());
+
+  //GENERTE EPHEMERAL KEY
+  const ephemeralKeyPair = await generateKeyPair()
+
+  // ENCRYPT CHALLENGE USING USER PUBLIC KEY
+  challengeEncrypt = encrypt(challenge, userPublicKey)
+
+  // GENERATE SHARED SECRET
+  const sharedKey = getSharedKey(ephemeralKeyPair.privateKey, userPublicKey)
+
+  // CHECK USER EXISTS
+  await authService.checkEmailExists(username);
+
+  // CREATE SESSION
+  req.session.user = { ...body, userId: userId, challenge: challenge }
+  req.session.keystore = { 
+    publicKey: tweetnaclUtil.encodeBase64(ephemeralKeyPair.publicKey), 
+    privateKey: tweetnaclUtil.encodeBase64(ephemeralKeyPair.privateKey), 
+    keyType: tweetnaclUtil.encodeBase64(ephemeralKeyPair.keyType), 
+    sharedKey: tweetnaclUtil.encodeBase64(sharedKey) 
+  }
+
+  const respObj = {
+    encryptedChallenge: challengeEncrypt,
+    ephemeralPubKey: tweetnaclUtil.encodeBase64(ephemeralKeyPair.publicKey),
+    userId: userId
+  }
+  res.send(respObj)
+});
+
+
+const EntadaAuthRegistrationVerify = catchAsync(async (req, res) => {
+  const body = req.body;
+  const plainMsg = body.plainMsg;
+  const signedMsg = body.signedMsg;
+  const encryptedChallengeWithShared = body.encryptedChallengeWithShared;
+  const nonceInReq = tweetnaclUtil.decodeBase64(body.nonce)
+  // console.log(req.session);
+
+  if (req.session.user) {
+    let user = req.session.user
+    let keyStore = req.session.keystore
+
+    // VERIFY SIGNATURE USING USER PUBLIC KEY
+    if (!verifySign(signedMsg, plainMsg, tweetnaclUtil.decodeBase64(user.publicKey))) {
+      return res.status(400).send({ error: "Signature verification failed" });
+    }
+
+    // DECRYPT THE CHALLENGE USING SHARED KEY
+    
+    let decryptedChallenge = decryptWithShared(encryptedChallengeWithShared,tweetnaclUtil.decodeBase64(keyStore.sharedKey), nonceInReq)
+
+    // COMPARE CHALLENGE
+    if (decryptedChallenge != user.challenge) {
+      return res.status(400).send({ error: "Challenge verification failed" });
+    }
+    // GENERATE REGISTRATION CODE
+    let registrationCode = libSodiumWrapper.to_hex(libSodiumWrapper.randombytes_buf(libSodiumWrapper.crypto_shorthash_BYTES))
+
+    // ENCRYPT REGISTRATION CODE
+    var nonce = libSodiumWrapper.randombytes_buf(libSodiumWrapper.crypto_box_NONCEBYTES)
+    let encryptedRegistrationCode = encryptWithSharedKey(registrationCode, tweetnaclUtil.decodeBase64(keyStore.sharedKey),nonce)
+
+    // CREATE USER IN DB
+    const createUser = await userService.entradaMethodCreateUser({...user,registrationCode:registrationCode});
+    
+    // SEND ENCRYPTED REGISTRATION CODE AND USER INFO
+    const respObj = {
+      registrationCode: {encryptedData: encryptedRegistrationCode, nonce:tweetnaclUtil.encodeBase64(nonce) },
+      userId: user.userId
+    }
+    res.send(respObj)
+  }
+})
 module.exports = {
   register,
   login,
@@ -228,5 +315,7 @@ module.exports = {
   SimpleWebAuthnRegistration,
   SimpleWebAuthnVerifyRegistration,
   SimpleWebAuthnLogin,
-  SimpleWebAuthnLoginVerify
+  SimpleWebAuthnLoginVerify,
+  EntadaAuthRegistration,
+  EntadaAuthRegistrationVerify
 };
