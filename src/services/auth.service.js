@@ -108,6 +108,15 @@ const loginWithEmail = async (email) => {
 const checkEmailExists = async (email) => {
   await userService.checkEmailExists(email);
 };
+
+/**
+ * Check email exists
+ * @param {string} email
+ * @returns {Promise<User>}
+ */
+const checkEmailExistsEntradaCustomUser = async (email) => {
+  await userService.checkEmailEntradaCustomUser(email);
+};
 module.exports = {
   loginUserWithEmailAndPassword,
   logout,
@@ -115,5 +124,6 @@ module.exports = {
   resetPassword,
   verifyEmail,
   loginWithEmail,
-  checkEmailExists
+  checkEmailExists,
+  checkEmailExistsEntradaCustomUser
 };

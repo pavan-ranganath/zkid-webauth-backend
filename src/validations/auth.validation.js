@@ -70,7 +70,13 @@ const entradaAuthRegistrationVerify = {
     nonce: Joi.string().required(),
   }),
 };
-
+const entradaAuthLogin = {
+  body: Joi.object().keys({
+    username: Joi.string().email().required(),
+    signedMsg: Joi.string().required(),
+    plainMsg: Joi.string().required(),
+  }),
+};
 
 module.exports = {
   register,
@@ -82,5 +88,6 @@ module.exports = {
   verifyEmail,
   simpleWebAuthnRegistration,
   entradaAuthRegistration,
-  entradaAuthRegistrationVerify
+  entradaAuthRegistrationVerify,
+  entradaAuthLogin
 };

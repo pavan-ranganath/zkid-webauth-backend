@@ -1,6 +1,7 @@
 const httpStatus = require('http-status');
 const { User, EntradaCustomUser } = require('../models');
 const ApiError = require('../utils/ApiError');
+const NewUser = require('../models/newUser.model');
 
 /**
  * Create a user
@@ -56,6 +57,12 @@ const checkEmailExists = async (email) =>{
   }
 }
 
+const checkEmailEntradaCustomUser = async (email) =>{
+  if (await EntradaCustomUser.isEmailTaken(email)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Email already taken');
+  }
+}
+
 /**
  * Get user by email
  * @param {string} email
@@ -98,6 +105,14 @@ const deleteUserById = async (userId) => {
   return user;
 };
 
+/**
+ * Get user by email
+ * @param {string} email
+ * @returns {Promise<User>}
+ */
+const getEntradaAuthUserByEmail = async (username) => {
+  return NewUser.findOne({ username });
+};
 module.exports = {
   createUser,
   queryUsers,
@@ -106,5 +121,7 @@ module.exports = {
   updateUserById,
   deleteUserById,
   checkEmailExists,
-  entradaMethodCreateUser
+  entradaMethodCreateUser,
+  checkEmailEntradaCustomUser,
+  getEntradaAuthUserByEmail
 };

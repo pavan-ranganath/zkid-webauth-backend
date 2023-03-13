@@ -13,6 +13,7 @@ router.post('/verify-authentication', authController.SimpleWebAuthnLoginVerify);
 
 router.post('/generate-entrada-registration-options', validate(authValidation.entradaAuthRegistration), authController.EntadaAuthRegistration);
 router.post('/verify-entrada-registration', validate(authValidation.entradaAuthRegistrationVerify), authController.EntadaAuthRegistrationVerify);
+router.post('/entrada-login', validate(authValidation.entradaAuthLogin), authController.EntadaAuthLogin);
 
 
 router.post('/register', validate(authValidation.register), authController.register);

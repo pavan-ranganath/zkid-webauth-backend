@@ -240,7 +240,7 @@ const EntadaAuthRegistration = catchAsync(async (req, res) => {
   const sharedKey = getSharedKey(ephemeralKeyPair.privateKey, userPublicKey)
 
   // CHECK USER EXISTS
-  await authService.checkEmailExists(username);
+  await authService.checkEmailExistsEntradaCustomUser(username);
 
   // CREATE SESSION
   req.session.user = { ...body, userId: userId, challenge: challenge }
@@ -303,6 +303,20 @@ const EntadaAuthRegistrationVerify = catchAsync(async (req, res) => {
     res.send(respObj)
   }
 })
+
+const EntadaAuthLogin = catchAsync(async (req, res) => { 
+  const body = req.body;
+  const username = body.username;
+  const plainMsg = body.plainMsg;
+  const signedMsg = body.signedMsg; 
+  await authService.checkEmailExistsEntradaCustomUser(username);
+  let user = await userService.getEntradaAuthUserByEmail(username)
+   // VERIFY SIGNATURE USING USER PUBLIC KEY
+   if (!verifySign(signedMsg, plainMsg, tweetnaclUtil.decodeBase64(user.publicKey))) {
+    return res.status(400).send({ error: "Signature verification failed" });
+  }
+  return res.status(200).send({status:"success"})
+})
 module.exports = {
   register,
   login,
@@ -317,5 +331,6 @@ module.exports = {
   SimpleWebAuthnLogin,
   SimpleWebAuthnLoginVerify,
   EntadaAuthRegistration,
-  EntadaAuthRegistrationVerify
+  EntadaAuthRegistrationVerify,
+  EntadaAuthLogin
 };
