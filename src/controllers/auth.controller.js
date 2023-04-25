@@ -5,12 +5,13 @@ const { generateRegistrationOptions, verifyRegistrationResponse, generateAuthent
 const { isoUint8Array } = require('@simplewebauthn/server/helpers');
 
 const { v4: uuidv4 } = require('uuid');
+const ed = require('@noble/ed25519');
+
 const ApiError = require('../utils/ApiError');
 
 const base64url = require('base64url');
 var libSodiumWrapper = require("libsodium-wrappers");
 
-const ed = require('@noble/ed25519')
 var tweetnaclUtil = require("tweetnacl-util");
 
 const { generateKeyPair, encrypt, signEncode, verifySign, sign, getSharedKey, decrypt,encryptWithSharedKey, decryptWithShared } = require('../middlewares/ed25519Wrapper')
@@ -225,31 +226,7 @@ const EntadaAuthRegistration = catchAsync(async (req, res) => {
   const body = req.body;
   const username = body.username;
   const name = body.name;
-  const userPublicKey = tweetnaclUtil.decodeBase64(body.publicKey);
-  const userId = uuidv4();
-  // GENERATE CHALLENGE
-  const challenge = ed.utils.bytesToHex(ed.utils.randomPrivateKey());
-
-  //GENERTE EPHEMERAL KEY
-  const ephemeralKeyPair = await generateKeyPair()
-
-  // ENCRYPT CHALLENGE USING USER PUBLIC KEY
-  challengeEncrypt = encrypt(challenge, userPublicKey)
-
-  // GENERATE SHARED SECRET
-  const sharedKey = getSharedKey(ephemeralKeyPair.privateKey, userPublicKey)
-
-  // CHECK USER EXISTS
-  await authService.checkEmailExistsEntradaCustomUser(username);
-
-  // CREATE SESSION
-  req.session.user = { ...body, userId: userId, challenge: challenge }
-  req.session.keystore = { 
-    publicKey: tweetnaclUtil.encodeBase64(ephemeralKeyPair.publicKey), 
-    privateKey: tweetnaclUtil.encodeBase64(ephemeralKeyPair.privateKey), 
-    keyType: tweetnaclUtil.encodeBase64(ephemeralKeyPair.keyType), 
-    sharedKey: tweetnaclUtil.encodeBase64(sharedKey) 
-  }
+  const { ephemeralKeyPair, userId } = await authService.entradaAuthRegistration(body, username, req);
 
   const respObj = {
     encryptedChallenge: challengeEncrypt,
@@ -300,6 +277,9 @@ const EntadaAuthRegistrationVerify = catchAsync(async (req, res) => {
       registrationCode: {encryptedData: encryptedRegistrationCode, nonce:tweetnaclUtil.encodeBase64(nonce) },
       userId: user.userId
     }
+    const verifyEmailToken = await tokenService.generateVerifyEmailToken(createUser);
+    await emailService.sendVerificationEmail(createUser.username, verifyEmailToken);
+    
     res.send(respObj)
   }
 })
@@ -309,13 +289,9 @@ const EntadaAuthLogin = catchAsync(async (req, res) => {
   const username = body.username;
   const plainMsg = body.plainMsg;
   const signedMsg = body.signedMsg; 
-  await authService.checkEmailExistsEntradaCustomUser(username);
-  let user = await userService.getEntradaAuthUserByEmail(username)
-   // VERIFY SIGNATURE USING USER PUBLIC KEY
-   if (!verifySign(signedMsg, plainMsg, tweetnaclUtil.decodeBase64(user.publicKey))) {
-    return res.status(400).send({ error: "Signature verification failed" });
-  }
-  return res.status(200).send({status:"success"})
+  let user = await authService.loginUsingPublicKey(username, plainMsg, signedMsg);
+  
+  return res.status(200).send({status:"success", user: user})
 })
 module.exports = {
   register,
@@ -334,3 +310,5 @@ module.exports = {
   EntadaAuthRegistrationVerify,
   EntadaAuthLogin
 };
+
+

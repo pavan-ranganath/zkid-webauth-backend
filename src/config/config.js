@@ -21,7 +21,7 @@ const envVarsSchema = Joi.object()
     SMTP_HOST: Joi.string().description('server that will send the emails'),
     SMTP_PORT: Joi.number().description('port to connect to the email server'),
     SMTP_USERNAME: Joi.string().description('username for email server'),
-    SMTP_PASSWORD: Joi.string().description('password for email server'),
+    // SMTP_PASSWORD: Joi.string().description('password for email server'),
     EMAIL_FROM: Joi.string().description('the from field in the emails sent by the app'),
   })
   .unknown();
@@ -36,7 +36,7 @@ module.exports = {
   env: envVars.NODE_ENV,
   port: envVars.PORT,
   mongoose: {
-    url: envVars.MONGODB_URL + (envVars.NODE_ENV === 'test' ? '-test' : ''),
+    url: envVars.MONGODB_URL + (envVars.NODE_ENV === 'test' ? '-test' : '')
   },
   jwt: {
     secret: envVars.JWT_SECRET,
@@ -47,13 +47,21 @@ module.exports = {
   },
   email: {
     smtp: {
+      service: envVars.SMTP_SERVICE,
       host: envVars.SMTP_HOST,
-      port: envVars.SMTP_PORT,
+      // port: envVars.SMTP_PORT,
       auth: {
+        type: 'OAuth2',
         user: envVars.SMTP_USERNAME,
-        pass: envVars.SMTP_PASSWORD,
+        // pass: envVars.SMTP_PASSWORD,
+        clientId: envVars.SMTP_CLIENTID,
+        clientSecret: envVars.SMTP_CLIENTSECRET,
+        refreshToken: envVars.SMTP_REFRESHTOKEN
       },
     },
     from: envVars.EMAIL_FROM,
   },
+  frontEnd: {
+    domain: envVars.CLIENT_DOMAIN
+  }
 };

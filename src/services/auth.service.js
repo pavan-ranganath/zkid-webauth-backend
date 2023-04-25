@@ -1,10 +1,15 @@
 const httpStatus = require('http-status');
 const tokenService = require('./token.service');
 const userService = require('./user.service');
+const emailService = require('./email.service');
+
 const Token = require('../models/token.model');
 const ApiError = require('../utils/ApiError');
 const { tokenTypes } = require('../config/tokens');
-
+const { generateKeyPair, encrypt, signEncode, verifySign, sign, getSharedKey, decrypt,encryptWithSharedKey, decryptWithShared } = require('../middlewares/ed25519Wrapper')
+var tweetnaclUtil = require("tweetnacl-util");
+const { v4: uuidv4 } = require('uuid');
+const ed = require('@noble/ed25519')
 /**
  * Login with username and password
  * @param {string} email
@@ -86,6 +91,7 @@ const verifyEmail = async (verifyEmailToken) => {
     await Token.deleteMany({ user: user.id, type: tokenTypes.VERIFY_EMAIL });
     await userService.updateUserById(user.id, { isEmailVerified: true });
   } catch (error) {
+    console.error(error);
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Email verification failed');
   }
 };
@@ -114,9 +120,49 @@ const checkEmailExists = async (email) => {
  * @param {string} email
  * @returns {Promise<User>}
  */
-const checkEmailExistsEntradaCustomUser = async (email) => {
-  await userService.checkEmailEntradaCustomUser(email);
+const loginUsingPublicKey = async (username, plainMsg, signedMsg) => {
+  await userService.checkEmailEntradaCustomUser(username);
+  let user = await userService.getEntradaAuthUserByEmail(username)
+   // VERIFY SIGNATURE USING USER PUBLIC KEY
+   if (!verifySign(signedMsg, plainMsg, tweetnaclUtil.decodeBase64(user.publicKey))) {
+    return res.status(400).send({ error: "Signature verification failed" });
+  }
+  if (!user.isEmailVerified) {
+    const verifyEmailToken = await tokenService.generateVerifyEmailToken(user);
+    await emailService.sendVerificationEmail(user.username, verifyEmailToken);
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Please verify your email address');
+  }
+  return user
 };
+
+async function entradaAuthRegistration(body, username, req) {
+  const userPublicKey = tweetnaclUtil.decodeBase64(body.publicKey);
+  const userId = uuidv4();
+  // GENERATE CHALLENGE
+  const challenge = ed.utils.bytesToHex(ed.utils.randomPrivateKey());
+
+  //GENERTE EPHEMERAL KEY
+  const ephemeralKeyPair = await generateKeyPair();
+
+  // ENCRYPT CHALLENGE USING USER PUBLIC KEY
+  challengeEncrypt = encrypt(challenge, userPublicKey);
+
+  // GENERATE SHARED SECRET
+  const sharedKey = getSharedKey(ephemeralKeyPair.privateKey, userPublicKey);
+
+  // CHECK USER EXISTS
+  await userService.checkEmailEntradaCustomUser(username);
+
+  // CREATE SESSION
+  req.session.user = { ...body, userId: userId, challenge: challenge };
+  req.session.keystore = {
+    publicKey: tweetnaclUtil.encodeBase64(ephemeralKeyPair.publicKey),
+    privateKey: tweetnaclUtil.encodeBase64(ephemeralKeyPair.privateKey),
+    keyType: tweetnaclUtil.encodeBase64(ephemeralKeyPair.keyType),
+    sharedKey: tweetnaclUtil.encodeBase64(sharedKey)
+  };
+  return { ephemeralKeyPair, userId };
+}
 module.exports = {
   loginUserWithEmailAndPassword,
   logout,
@@ -125,5 +171,6 @@ module.exports = {
   verifyEmail,
   loginWithEmail,
   checkEmailExists,
-  checkEmailExistsEntradaCustomUser
+  loginUsingPublicKey,
+  entradaAuthRegistration
 };
