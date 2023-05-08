@@ -1,13 +1,13 @@
 const httpStatus = require('http-status');
-const { DMVRecord } = require('../models');
+const { DMVAttestor } = require('../models');
 const ApiError = require('../utils/ApiError');
 /**
  * Create a dmv record
- * @param {Object} dmvBody
- * @returns {Promise<DMVRecord>}
+ * @param {Object} dmvAttestorBody
+ * @returns {Promise<DMVAttestor>}
  */
-const createDMVRecord = async (dmvBody) => {
-    return DMVRecord.create(dmvBody);
+const createDMVAttestor = async (dmvAttestorBody) => {
+    return DMVAttestor.create(dmvAttestorBody);
 };
 
 /**
@@ -19,37 +19,29 @@ const createDMVRecord = async (dmvBody) => {
  * @param {number} [options.page] - Current page (default = 1)
  * @returns {Promise<QueryResult>}
  */
-const queryDMVRecords = async (filter, options) => {
-    const dmvRecords = await DMVRecord.paginate(filter, options);
-    return dmvRecords;
+const queryDMVAttestors = async (filter, options) => {
+    const DMVAttestors = await DMVAttestor.paginate(filter, options);
+    return DMVAttestors;
 };
 
 /**
  * Get DMV record by id
  * @param {ObjectId} id
- * @returns {Promise<DMVRecord>}
+ * @returns {Promise<DMVAttestor>}
  */
-const getDMVRecordById = async (id) => {
-    return DMVRecord.findById(id);
+const getDMVAttestorById = async (id) => {
+    return DMVAttestor.findById(id);
 };
 
-/**
- * Get DMV record by user id
- * @param {ObjectId} userId
- * @returns {Promise<DMVRecord>}
- */
-const getDMVRecordByUserId = async (_userId) => {
-    return DMVRecord.findOne({userId:_userId});
-};
 
 /**
  * Update DMV record by id
  * @param {ObjectId} dmvId
  * @param {Object} updateBody
- * @returns {Promise<DMVRecord>}
+ * @returns {Promise<DMVAttestor>}
  */
-const updateDmvRecordById = async (DMVId, updateBody) => {
-    const dmv = await getDMVRecordById(DMVId);
+const updateDMVAttestorById = async (DMVId, updateBody) => {
+    const dmv = await getDMVAttestorById(DMVId);
     if (!dmv) {
         throw new ApiError(httpStatus.NOT_FOUND, 'DMV Record not found');
     }
@@ -61,10 +53,10 @@ const updateDmvRecordById = async (DMVId, updateBody) => {
 /**
  * Delete user by id
  * @param {ObjectId} dmvId
- * @returns {Promise<DMVRecord>}
+ * @returns {Promise<DMVAttestor>}
  */
-const deleteDmvRecordById = async (dmvId) => {
-    const dmv = await getDMVRecordById(dmvId);
+const deleteDMVAttestorById = async (dmvId) => {
+    const dmv = await getDMVAttestorById(dmvId);
     if (!dmv) {
       throw new ApiError(httpStatus.NOT_FOUND, 'DMV Record not found');
     }
@@ -73,10 +65,9 @@ const deleteDmvRecordById = async (dmvId) => {
   };
 
   module.exports = {
-    createDMVRecord,
-    queryDMVRecords,
-    getDMVRecordById,
-    updateDmvRecordById,
-    deleteDmvRecordById,
-    getDMVRecordByUserId
+    createDMVAttestor,
+    queryDMVAttestors,
+    getDMVAttestorById,
+    updateDMVAttestorById,
+    deleteDMVAttestorById,
   };

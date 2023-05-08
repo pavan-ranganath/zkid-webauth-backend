@@ -1,6 +1,10 @@
 const express = require('express');
 const authRoute = require('./auth.route');
 const userRoute = require('./user.route');
+const dmvRecordRoute = require('./dmvRecord.route');
+const dmvAttestorRoute = require('./dmvAttestors.route');
+
+
 const docsRoute = require('./docs.route');
 const config = require('../../config/config');
 
@@ -14,6 +18,14 @@ const defaultRoutes = [
   {
     path: '/users',
     route: userRoute,
+  },
+  {
+    path: '/dmv-record',
+    route: dmvRecordRoute,
+  },
+  {
+    path: '/dmv-attestor',
+    route: dmvAttestorRoute,
   },
 ];
 

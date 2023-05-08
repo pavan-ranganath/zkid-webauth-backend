@@ -9,7 +9,10 @@ const { tokenTypes } = require('../config/tokens');
 const { generateKeyPair, encrypt, signEncode, verifySign, sign, getSharedKey, decrypt,encryptWithSharedKey, decryptWithShared } = require('../middlewares/ed25519Wrapper')
 var tweetnaclUtil = require("tweetnacl-util");
 const { v4: uuidv4 } = require('uuid');
-const ed = require('@noble/ed25519')
+const ed = require('@noble/ed25519');
+
+var libSodiumWrapper = require("libsodium-wrappers");
+
 /**
  * Login with username and password
  * @param {string} email
@@ -132,6 +135,7 @@ const loginUsingPublicKey = async (username, plainMsg, signedMsg) => {
     await emailService.sendVerificationEmail(user.username, verifyEmailToken);
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Please verify your email address');
   }
+ 
   return user
 };
 

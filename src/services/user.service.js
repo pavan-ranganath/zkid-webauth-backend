@@ -22,7 +22,7 @@ const createUser = async (userBody) => {
  * @returns {Promise<User>}
  */
 const entradaMethodCreateUser = async (userBody) => {
-  if (await EntradaCustomUser.isEmailTaken(userBody.email)) {
+  if (await EntradaCustomUser.isEmailTaken(userBody.username)) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Username already registered');
   }
   return EntradaCustomUser.create(userBody);
@@ -113,6 +113,15 @@ const deleteUserById = async (userId) => {
 const getEntradaAuthUserByEmail = async (username) => {
   return NewUser.findOne({ username });
 };
+
+/**
+ * Get user by public key
+ * @param {string} email
+ * @returns {Promise<User>}
+ */
+const getEntradaAuthUserByPublicKey = async (publicKey) => {
+  return NewUser.findOne({ publicKey });
+};
 module.exports = {
   createUser,
   queryUsers,
@@ -123,5 +132,6 @@ module.exports = {
   checkEmailExists,
   entradaMethodCreateUser,
   checkEmailEntradaCustomUser,
-  getEntradaAuthUserByEmail
+  getEntradaAuthUserByEmail,
+  getEntradaAuthUserByPublicKey
 };
