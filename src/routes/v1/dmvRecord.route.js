@@ -14,7 +14,7 @@ router
 router
   .route('/:id')
   .get(validate(dmvRecordValidation.getDMVRecord), dmvRecordController.getDMVRecord)
-  .patch(validate(dmvRecordValidation.updateDMVRecord), dmvRecordController.updateDMVRecord)
+  .put(validate(dmvRecordValidation.updateDMVRecord), dmvRecordController.updateDMVRecord)
   .delete(validate(dmvRecordValidation.deleteDMVRecord), dmvRecordController.deleteDMVRecord);
 
   router

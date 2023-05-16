@@ -3,6 +3,7 @@ const { objectId } = require('./custom.validation');
 const createDMVAttestor = {
     body: Joi.object().keys({
         name: Joi.string().required(),
+        publicAddress: Joi.string().required()
     }),
 
 };

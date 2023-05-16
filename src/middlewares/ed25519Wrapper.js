@@ -3,7 +3,7 @@ var tweetnaclUtil = require("tweetnacl-util");
 
 const encrypt = (msg, publicKey) => {
     const msgDecodeutf8 = tweetnaclUtil.decodeUTF8(msg);
-    let curve25519publicKey = libSodiumWrapper.crypto_sign_ed25519_pk_to_curve25519(publicKey);
+    let curve25519publicKey = libSodiumWrapper.crypto_sign_ed25519_pk_to_curve25519(hexToUint8Arrray(publicKey));
     const encryptedMessage = libSodiumWrapper.crypto_box_seal(msgDecodeutf8, curve25519publicKey);
     return tweetnaclUtil.encodeBase64(encryptedMessage);
 }
@@ -11,8 +11,8 @@ const encrypt = (msg, publicKey) => {
 const decrypt = (ciphertext, publicKey, privateKey) => {
     const decodedCiphertext = tweetnaclUtil.decodeBase64(ciphertext);
 
-    const curvePublicKey = libSodiumWrapper.crypto_sign_ed25519_pk_to_curve25519(publicKey);
-    const curvePrivateKey = libSodiumWrapper.crypto_sign_ed25519_sk_to_curve25519(privateKey);
+    const curvePublicKey = libSodiumWrapper.crypto_sign_ed25519_pk_to_curve25519(hexToUint8Arrray(publicKey));
+    const curvePrivateKey = libSodiumWrapper.crypto_sign_ed25519_sk_to_curve25519(hexToUint8Arrray(privateKey));
 
     const decrypted = libSodiumWrapper.crypto_box_seal_open(decodedCiphertext, curvePublicKey, curvePrivateKey);
 
@@ -24,7 +24,7 @@ const decrypt = (ciphertext, publicKey, privateKey) => {
 
 const decryptWithShared = (ciphertext, sharedKey,nonce) => {
     const decodedCiphertext = tweetnaclUtil.decodeBase64(ciphertext);
-    const decrypted = libSodiumWrapper.crypto_box_open_easy_afternm(decodedCiphertext, nonce, sharedKey);
+    const decrypted = libSodiumWrapper.crypto_box_open_easy_afternm(decodedCiphertext, hexToUint8Arrray(nonce),  hexToUint8Arrray(sharedKey));
 
     if (!decrypted) {
         return null;
@@ -44,19 +44,23 @@ const signEncode = (payload, privateKey) => {
 }
 
 const verifySign = (signature, msg, publicKey) => {
-    return libSodiumWrapper.crypto_sign_verify_detached(tweetnaclUtil.decodeBase64(signature),msg,publicKey);
+    return libSodiumWrapper.crypto_sign_verify_detached(tweetnaclUtil.decodeBase64(signature),msg,hexToUint8Arrray(publicKey));
 }
 
-const  generateKeyPair = async() =>  {
-    return libSodiumWrapper.crypto_sign_keypair()
+const  generateKeyPair = async(format="hex") =>  {
+    return libSodiumWrapper.crypto_sign_keypair(format)
 }
 
 const getSharedKey = (privateKey, publicKey) => {
-    return  libSodiumWrapper.crypto_scalarmult(libSodiumWrapper.crypto_sign_ed25519_sk_to_curve25519(privateKey), libSodiumWrapper.crypto_sign_ed25519_pk_to_curve25519(publicKey))
+    return  libSodiumWrapper.crypto_scalarmult(
+        libSodiumWrapper.crypto_sign_ed25519_sk_to_curve25519(hexToUint8Arrray(privateKey)), 
+        libSodiumWrapper.crypto_sign_ed25519_pk_to_curve25519(hexToUint8Arrray(publicKey)),
+        "hex"
+        )
 }
 
 const encryptWithSharedKey = (msg, sharedKey, nonce) =>{
-    const encryptedMessage = libSodiumWrapper.crypto_box_easy_afternm(msg,nonce, sharedKey);
+    const encryptedMessage = libSodiumWrapper.crypto_box_easy_afternm(msg,hexToUint8Arrray(nonce), hexToUint8Arrray(sharedKey));
     return tweetnaclUtil.encodeBase64(encryptedMessage);
 }
 module.exports = {
@@ -70,3 +74,7 @@ module.exports = {
   decryptWithShared,
   encryptWithSharedKey
 };
+
+function hexToUint8Arrray(publicKey) {
+    return Uint8Array.from(Buffer.from(publicKey, 'hex'));
+}

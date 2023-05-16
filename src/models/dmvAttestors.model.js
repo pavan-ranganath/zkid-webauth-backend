@@ -9,6 +9,11 @@ const dmvAttestorsSchema = mongoose.Schema(
             required: true,
             trim: true,
         },
+        publicAddress: {
+            type: String,
+            required: true,
+            trim: true,
+        }
     },
     {
         timestamps: true,

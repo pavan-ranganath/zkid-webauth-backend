@@ -40,6 +40,10 @@ const dmvRecordsSchema = mongoose.Schema(
             ref: 'NewUser',
             required: true,
             unique: true
+        },
+        transactionReceipt: {
+            type: mongoose.SchemaTypes.ObjectId,
+            ref: 'TransactionReceipt'
         }
     },
     {

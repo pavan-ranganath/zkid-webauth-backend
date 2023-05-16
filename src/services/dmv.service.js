@@ -1,5 +1,5 @@
 const httpStatus = require('http-status');
-const { DMVRecord } = require('../models');
+const { DMVRecord, TransactionReceipt } = require('../models');
 const ApiError = require('../utils/ApiError');
 /**
  * Create a dmv record
@@ -52,6 +52,10 @@ const updateDmvRecordById = async (DMVId, updateBody) => {
     const dmv = await getDMVRecordById(DMVId);
     if (!dmv) {
         throw new ApiError(httpStatus.NOT_FOUND, 'DMV Record not found');
+    }
+    if(updateBody.transactionReceipt) {
+        const trans = await TransactionReceipt.create(updateBody.transactionReceipt)
+        updateBody.transactionReceipt = trans.id;
     }
     Object.assign(dmv, updateBody);
     await dmv.save();

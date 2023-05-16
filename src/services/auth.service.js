@@ -140,13 +140,13 @@ const loginUsingPublicKey = async (username, plainMsg, signedMsg) => {
 };
 
 async function entradaAuthRegistration(body, username, req) {
-  const userPublicKey = tweetnaclUtil.decodeBase64(body.publicKey);
+  const userPublicKey = body.publicKey;
   const userId = uuidv4();
   // GENERATE CHALLENGE
   const challenge = ed.utils.bytesToHex(ed.utils.randomPrivateKey());
 
   //GENERTE EPHEMERAL KEY
-  const ephemeralKeyPair = await generateKeyPair();
+  const ephemeralKeyPair = await generateKeyPair("hex");
 
   // ENCRYPT CHALLENGE USING USER PUBLIC KEY
   challengeEncrypt = encrypt(challenge, userPublicKey);
@@ -160,12 +160,12 @@ async function entradaAuthRegistration(body, username, req) {
   // CREATE SESSION
   req.session.user = { ...body, userId: userId, challenge: challenge };
   req.session.keystore = {
-    publicKey: tweetnaclUtil.encodeBase64(ephemeralKeyPair.publicKey),
-    privateKey: tweetnaclUtil.encodeBase64(ephemeralKeyPair.privateKey),
-    keyType: tweetnaclUtil.encodeBase64(ephemeralKeyPair.keyType),
-    sharedKey: tweetnaclUtil.encodeBase64(sharedKey)
+    publicKey: ephemeralKeyPair.publicKey,
+    privateKey: ephemeralKeyPair.privateKey,
+    keyType: ephemeralKeyPair.keyType,
+    sharedKey: sharedKey
   };
-  return { ephemeralKeyPair, userId };
+  return { ephemeralKeyPair, userId, challengeEncrypt };
 }
 module.exports = {
   loginUserWithEmailAndPassword,

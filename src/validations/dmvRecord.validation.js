@@ -9,6 +9,7 @@ const createDMVRecord = {
             address: Joi.string().required(),
             attestor: Joi.string().required(),
             attestation_status: Joi.string().valid('ACCEPTED', 'REJECTED', 'PENDING'),
+            transactionReceipt: Joi.string()
         },
         signedData: Joi.string().required()
     }),
@@ -39,12 +40,15 @@ const updateDMVRecord = {
     }),
     body: Joi.object()
         .keys({
+            id: Joi.string().custom(objectId),
             name: Joi.string().required(),
             DL_no: Joi.string().required(),
             dob: Joi.string().required(),
             address: Joi.string().required(),
+            userId: Joi.string(),
             attestor: Joi.string().required(),
             attestation_status: Joi.string().valid('ACCEPTED', 'REJECTED', 'PENDING'),
+            transactionReceipt: Joi.object()
         })
         .min(1),
 };
