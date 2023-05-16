@@ -127,7 +127,7 @@ const loginUsingPublicKey = async (username, plainMsg, signedMsg) => {
   await userService.checkEmailEntradaCustomUser(username);
   let user = await userService.getEntradaAuthUserByEmail(username)
    // VERIFY SIGNATURE USING USER PUBLIC KEY
-   if (!verifySign(signedMsg, plainMsg, tweetnaclUtil.decodeBase64(user.publicKey))) {
+   if (!verifySign(signedMsg, plainMsg, (user.publicKey))) {
     return res.status(400).send({ error: "Signature verification failed" });
   }
   if (!user.isEmailVerified) {
