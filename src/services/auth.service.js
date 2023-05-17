@@ -128,7 +128,7 @@ const loginUsingPublicKey = async (username, plainMsg, signedMsg) => {
   let user = await userService.getEntradaAuthUserByEmail(username)
    // VERIFY SIGNATURE USING USER PUBLIC KEY
    if (!verifySign(signedMsg, plainMsg, (user.publicKey))) {
-    return res.status(400).send({ error: "Signature verification failed" });
+    throw new ApiError(httpStatus.UNAUTHORIZED, "Signature verification failed");
   }
 
   // Check of email has been verified
