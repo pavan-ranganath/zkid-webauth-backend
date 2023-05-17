@@ -47,7 +47,7 @@ const verifySign = (signature, msg, publicKey) => {
     return libSodiumWrapper.crypto_sign_verify_detached(tweetnaclUtil.decodeBase64(signature),msg,hexToUint8Arrray(publicKey));
 }
 
-const  generateKeyPair = async(format="hex") =>  {
+const  generateKeyPair = async(format="base64") =>  {
     return libSodiumWrapper.crypto_sign_keypair(format)
 }
 
@@ -55,7 +55,7 @@ const getSharedKey = (privateKey, publicKey) => {
     return  libSodiumWrapper.crypto_scalarmult(
         libSodiumWrapper.crypto_sign_ed25519_sk_to_curve25519(hexToUint8Arrray(privateKey)), 
         libSodiumWrapper.crypto_sign_ed25519_pk_to_curve25519(hexToUint8Arrray(publicKey)),
-        "hex"
+        "base64"
         )
 }
 
@@ -75,6 +75,7 @@ module.exports = {
   encryptWithSharedKey
 };
 
-function hexToUint8Arrray(publicKey) {
-    return Uint8Array.from(Buffer.from(publicKey, 'hex'));
+function hexToUint8Arrray(key) {
+    // return tweetnaclUtil.decodeBase64(key);
+    return Uint8Array.from(Buffer.from(key, 'base64'));
 }

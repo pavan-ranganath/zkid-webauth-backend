@@ -148,7 +148,7 @@ async function entradaAuthRegistration(body, username, req) {
   const challenge = ed.utils.bytesToHex(ed.utils.randomPrivateKey());
 
   //GENERTE EPHEMERAL KEY
-  const ephemeralKeyPair = await generateKeyPair("hex");
+  const ephemeralKeyPair = await generateKeyPair("base64");
 
   // ENCRYPT CHALLENGE USING USER PUBLIC KEY
   challengeEncrypt = encrypt(challenge, userPublicKey);

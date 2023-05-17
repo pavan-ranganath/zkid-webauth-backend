@@ -263,10 +263,10 @@ const EntadaAuthRegistrationVerify = catchAsync(async (req, res) => {
       return res.status(400).send({ error: "Challenge verification failed" });
     }
     // GENERATE REGISTRATION CODE
-    let registrationCode = libSodiumWrapper.randombytes_buf(libSodiumWrapper.crypto_shorthash_BYTES,"hex")
+    let registrationCode = libSodiumWrapper.randombytes_buf(libSodiumWrapper.crypto_shorthash_BYTES,"base64")
 
     // ENCRYPT REGISTRATION CODE
-    var nonce = libSodiumWrapper.randombytes_buf(libSodiumWrapper.crypto_box_NONCEBYTES,"hex")
+    var nonce = libSodiumWrapper.randombytes_buf(libSodiumWrapper.crypto_box_NONCEBYTES,"base64")
     let encryptedRegistrationCode = encryptWithSharedKey(registrationCode, (keyStore.sharedKey), nonce)
 
     // CREATE USER IN DB
@@ -293,7 +293,7 @@ const EntadaAuthLogin = catchAsync(async (req, res) => {
   const userPublicKey = (user.publicKey);
 
   //GENERTE EPHEMERAL KEY
-  const ephemeralKeyPair = await generateKeyPair("hex");
+  const ephemeralKeyPair = await generateKeyPair("base64");
 
   // GENERATE SHARED SECRET
   const sharedKey = getSharedKey(ephemeralKeyPair.privateKey, userPublicKey);
