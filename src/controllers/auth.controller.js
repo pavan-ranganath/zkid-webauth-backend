@@ -290,10 +290,10 @@ const EntadaAuthLogin = catchAsync(async (req, res) => {
   const plainMsg = body.plainMsg;
   const signedMsg = body.signedMsg;
   let user = await authService.loginUsingPublicKey(username, plainMsg, signedMsg);
-  const userPublicKey = tweetnaclUtil.decodeBase64(user.publicKey);
+  const userPublicKey = (user.publicKey);
 
   //GENERTE EPHEMERAL KEY
-  const ephemeralKeyPair = await generateKeyPair();
+  const ephemeralKeyPair = await generateKeyPair("hex");
 
   // GENERATE SHARED SECRET
   const sharedKey = getSharedKey(ephemeralKeyPair.privateKey, userPublicKey);
@@ -304,7 +304,7 @@ const EntadaAuthLogin = catchAsync(async (req, res) => {
 
 
   const respObj = {
-    ephemeralPubKey: tweetnaclUtil.encodeBase64(ephemeralKeyPair.publicKey),
+    ephemeralPubKey: (ephemeralKeyPair.publicKey),
     user: user
   }
   return res.status(200).send({ status: "success",...respObj })
