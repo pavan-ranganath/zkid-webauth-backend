@@ -60,14 +60,14 @@ const entradaAuthRegistration = {
     username: Joi.string().email().required(),
     name: Joi.string().required(),
     publicKey: Joi.string().required(),
+    plainMsg: Joi.string().required(),
+    signedMsg: Joi.string().required(),
   }),
 };
 const entradaAuthRegistrationVerify = {
   body: Joi.object().keys({
-    plainMsg: Joi.string().required(),
-    signedMsg: Joi.string().required(),
-    encryptedChallengeWithShared: Joi.string().required(),
-    nonce: Joi.string().required(),
+    signature: Joi.string().required(),
+    encryptedData: Joi.string().required()
   }),
 };
 const entradaAuthLogin = {

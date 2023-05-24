@@ -14,7 +14,9 @@ var libSodiumWrapper = require("libsodium-wrappers");
 
 var tweetnaclUtil = require("tweetnacl-util");
 
-const { generateKeyPair, encrypt, signEncode, verifySign, sign, getSharedKey, decrypt, encryptWithSharedKey, decryptWithShared } = require('../middlewares/ed25519Wrapper')
+// const { generateKeyPair, encrypt, signEncode, verifySign, sign, getSharedKey, decrypt, encryptWithSharedKey, decryptWithShared } = require('../middlewares/ed25519Wrapper')
+
+const { sign, generateKeyPair, readOpenSslPublicKeys, verifySign, getSharedKey, encryptWithSharedKey, convertEd25519PublicKeyToCurve25519, convertEd25519PrivateKeyToCurve25519, decryptWithSharedKey } = require('../middlewares/ed25519NewWrapper')
 // Human-readable title for your website
 const rpName = 'Entada test SimpleWebAuthn';
 // A unique identifier for your website
@@ -225,12 +227,12 @@ const SimpleWebAuthnLoginVerify = catchAsync(async (req, res) => {
 const EntadaAuthRegistration = catchAsync(async (req, res) => {
   const body = req.body;
   const username = body.username;
-  const name = body.name;
-  const { ephemeralKeyPair, userId, challengeEncrypt } = await authService.entradaAuthRegistration(body, username, req);
-
+  const { ephemeralKeyPair, userId, challengeEncrypt, signedChallengeEncrypt } = await authService.entradaAuthRegistration(body, username, req);
+  console.log("ephemeralKeyPair.publicKey", ephemeralKeyPair.publicKey)
   const respObj = {
-    encryptedChallenge: challengeEncrypt,
-    ephemeralPubKey: ephemeralKeyPair.publicKey,
+    challengeEncrypt: challengeEncrypt,
+    signedChallengeEncrypt: signedChallengeEncrypt.toHex(),
+    ephemeralPubKey: Buffer.from(ephemeralKeyPair.publicKey).toString('base64'),
     userId: userId
   }
   res.send(respObj)
@@ -239,42 +241,40 @@ const EntadaAuthRegistration = catchAsync(async (req, res) => {
 
 const EntadaAuthRegistrationVerify = catchAsync(async (req, res) => {
   const body = req.body;
-  const plainMsg = body.plainMsg;
-  const signedMsg = body.signedMsg;
-  const encryptedChallengeWithShared = body.encryptedChallengeWithShared;
-  const nonceInReq = (body.nonce)
+  const encryptedData = body.encryptedData;
+  const signature = body.signature;
   // console.log(req.session);
 
   if (req.session.user) {
     let user = req.session.user
     let keyStore = req.session.keystore
-
+    let sharedKey = Buffer.from(keyStore.sharedKey, "base64")
     // VERIFY SIGNATURE USING USER PUBLIC KEY
-    if (!verifySign(signedMsg, plainMsg, user.publicKey)) {
+    const clientPublicKey = readOpenSslPublicKeys(user.publicKey)
+    if (!verifySign(signature, encryptedData, clientPublicKey)) {
       return res.status(400).send({ error: "Signature verification failed" });
     }
 
     // DECRYPT THE CHALLENGE USING SHARED KEY
 
-    let decryptedChallenge = decryptWithShared(encryptedChallengeWithShared, (keyStore.sharedKey), nonceInReq)
-
+    let decryptedChallenge = decryptWithSharedKey(encryptedData, sharedKey)
+    let challengeObj = JSON.parse(decryptedChallenge)
     // COMPARE CHALLENGE
-    if (decryptedChallenge != user.challenge) {
+    if (challengeObj.challenge != user.challenge) {
       return res.status(400).send({ error: "Challenge verification failed" });
     }
     // GENERATE REGISTRATION CODE
-    let registrationCode = libSodiumWrapper.randombytes_buf(libSodiumWrapper.crypto_shorthash_BYTES,"base64")
+    let registrationCode = generate6digitRandomNumber()
 
     // ENCRYPT REGISTRATION CODE
-    var nonce = libSodiumWrapper.randombytes_buf(libSodiumWrapper.crypto_box_NONCEBYTES,"base64")
-    let encryptedRegistrationCode = encryptWithSharedKey(registrationCode, (keyStore.sharedKey), nonce)
+    let encryptedRegistrationCode = encryptWithSharedKey(registrationCode.toString(), sharedKey)
 
     // CREATE USER IN DB
     const createUser = await userService.entradaMethodCreateUser({ ...user, registrationCode: registrationCode });
 
     // SEND ENCRYPTED REGISTRATION CODE AND USER INFO
     const respObj = {
-      registrationCode: { encryptedData: encryptedRegistrationCode, nonce: (nonce) },
+      registrationCode: encryptedRegistrationCode,
       userId: user.userId
     }
     const verifyEmailToken = await tokenService.generateVerifyEmailToken(createUser);
@@ -293,7 +293,7 @@ const EntadaAuthLogin = catchAsync(async (req, res) => {
   const userPublicKey = (user.publicKey);
 
   //GENERTE EPHEMERAL KEY
-  const ephemeralKeyPair = await generateKeyPair("base64");
+  const ephemeralKeyPair =  generateKeyPair("base64");
 
   // GENERATE SHARED SECRET
   const sharedKey = getSharedKey(ephemeralKeyPair.privateKey, userPublicKey);
@@ -307,9 +307,15 @@ const EntadaAuthLogin = catchAsync(async (req, res) => {
     ephemeralPubKey: (ephemeralKeyPair.publicKey),
     user: user
   }
-  return res.status(200).send({ status: "success",...respObj })
+  return res.status(200).send({ status: "success", ...respObj })
 })
 
+function generate6digitRandomNumber() {
+  var minm = 100000;
+  var maxm = 999999;
+  return Math.floor(Math
+  .random() * (maxm - minm + 1)) + minm;
+}
 module.exports = {
   register,
   login,

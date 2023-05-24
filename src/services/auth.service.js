@@ -6,7 +6,9 @@ const emailService = require('./email.service');
 const Token = require('../models/token.model');
 const ApiError = require('../utils/ApiError');
 const { tokenTypes } = require('../config/tokens');
-const { generateKeyPair, encrypt, signEncode, verifySign, sign, getSharedKey, decrypt,encryptWithSharedKey, decryptWithShared } = require('../middlewares/ed25519Wrapper')
+// const { generateKeyPair, signEncode, verifySign, sign, getSharedKey,encryptWithSharedKey, decryptWithShared } = require('../middlewares/ed25519Wrapper')
+const { sign, generateKeyPair, readOpenSslPublicKeys, verifySign, getSharedKey, encryptWithSharedKey, convertEd25519PublicKeyToCurve25519, convertEd25519PrivateKeyToCurve25519 } = require('../middlewares/ed25519NewWrapper')
+
 var tweetnaclUtil = require("tweetnacl-util");
 const { v4: uuidv4 } = require('uuid');
 const ed = require('@noble/ed25519');
@@ -126,8 +128,8 @@ const checkEmailExists = async (email) => {
 const loginUsingPublicKey = async (username, plainMsg, signedMsg) => {
   await userService.checkEmailEntradaCustomUser(username);
   let user = await userService.getEntradaAuthUserByEmail(username)
-   // VERIFY SIGNATURE USING USER PUBLIC KEY
-   if (!verifySign(signedMsg, plainMsg, (user.publicKey))) {
+  // VERIFY SIGNATURE USING USER PUBLIC KEY
+  if (!verifySign(signedMsg, plainMsg, (user.publicKey))) {
     throw new ApiError(httpStatus.UNAUTHORIZED, "Signature verification failed");
   }
 
@@ -137,37 +139,57 @@ const loginUsingPublicKey = async (username, plainMsg, signedMsg) => {
     await emailService.sendVerificationEmail(user.username, verifyEmailToken);
     // throw new ApiError(httpStatus.UNAUTHORIZED, 'Please verify your email address');
   }
- 
+
   return user
 };
 
 async function entradaAuthRegistration(body, username, req) {
   const userPublicKey = body.publicKey;
+  const signedMsg = body.signedMsg;
+  const plainMsg = body.plainMsg;
+
+  // CHECK USER EXISTS
+  await userService.checkEmailEntradaCustomUser(username, userPublicKey);
+
+  // VALIDATE SIGNATURE
+  const clientPublicKey = readOpenSslPublicKeys(userPublicKey)
+  if (!verifySign(signedMsg, plainMsg, clientPublicKey)) {
+    throw new Error('Signature verification failed');
+  }
+
+
   const userId = uuidv4();
   // GENERATE CHALLENGE
   const challenge = ed.utils.bytesToHex(ed.utils.randomPrivateKey());
+  console.log("challenge", challenge)
 
   //GENERTE EPHEMERAL KEY
-  const ephemeralKeyPair = await generateKeyPair("base64");
+  const ephemeralKeyPair = generateKeyPair();
+  console.log("serverPrivateKey",Buffer.from(ephemeralKeyPair.secretKey).toString('base64'));
+  console.log("serverPublicKey", Buffer.from(ephemeralKeyPair.publicKey).toString('base64'));
 
-  // ENCRYPT CHALLENGE USING USER PUBLIC KEY
-  challengeEncrypt = encrypt(challenge, userPublicKey);
+  // ED25519 -> curve25519
+  const clientCurve25519PublicKey = convertEd25519PublicKeyToCurve25519(clientPublicKey)
+  const ServerCurve25519PrivateKey = convertEd25519PrivateKeyToCurve25519(ephemeralKeyPair.secretKey)
 
   // GENERATE SHARED SECRET
-  const sharedKey = getSharedKey(ephemeralKeyPair.privateKey, userPublicKey);
+  const sharedKey = getSharedKey(ServerCurve25519PrivateKey, clientCurve25519PublicKey);
+  console.log('Server shared key (Base64):', Buffer.from(sharedKey).toString('base64'));
 
-  // CHECK USER EXISTS
-  await userService.checkEmailEntradaCustomUser(username);
+  // ENCRYPT CHALLENGE USING USER PUBLIC KEY
+  const challengeEncrypt = encryptWithSharedKey(challenge, sharedKey);
+
+  const signedChallengeEncrypt = sign(challengeEncrypt, ephemeralKeyPair.secretKey)
+  // let verifyMsg =  verifySign(challengeEncrypt,signedChallengeEncrypt,ephemeralKeyPair.publicKey)
 
   // CREATE SESSION
   req.session.user = { ...body, userId: userId, challenge: challenge };
   req.session.keystore = {
-    publicKey: ephemeralKeyPair.publicKey,
-    privateKey: ephemeralKeyPair.privateKey,
-    keyType: ephemeralKeyPair.keyType,
-    sharedKey: sharedKey
+    publicKey:  Buffer.from(ephemeralKeyPair.publicKey).toString('base64'),
+    privateKey: Buffer.from(ephemeralKeyPair.secretKey).toString('base64'),
+    sharedKey: Buffer.from(sharedKey).toString('base64')
   };
-  return { ephemeralKeyPair, userId, challengeEncrypt };
+  return { ephemeralKeyPair, userId, challengeEncrypt, signedChallengeEncrypt };
 }
 module.exports = {
   loginUserWithEmailAndPassword,

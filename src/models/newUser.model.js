@@ -63,6 +63,17 @@ newUserSchema.statics.isEmailTaken = async function (email) {
   return !!user;
 };
 
+
+/**
+ * Check if public key is taken
+ * @param {string} publicKey - The user's public key
+ * @returns {Promise<boolean>}
+ */
+newUserSchema.statics.isPublicKeyTaken = async function (publicKey) {
+  const user = await this.findOne({publicKey});
+  return !!user;
+};
+
 /**
  * @typedef NewUser
  */

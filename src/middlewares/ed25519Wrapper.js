@@ -1,38 +1,79 @@
 var libSodiumWrapper = require("libsodium-wrappers");
 var tweetnaclUtil = require("tweetnacl-util");
+const asn1 = require('asn1.js');
+const nacl = require('tweetnacl');
+const util = require('tweetnacl-util');
+// const Defs = require('./defs.js')
+const reHex = /^\s*(?:[0-9A-Fa-f][0-9A-Fa-f]\s*)+$/
 
-const encrypt = (msg, publicKey) => {
-    const msgDecodeutf8 = tweetnaclUtil.decodeUTF8(msg);
-    let curve25519publicKey = libSodiumWrapper.crypto_sign_ed25519_pk_to_curve25519(hexToUint8Arrray(publicKey));
-    const encryptedMessage = libSodiumWrapper.crypto_box_seal(msgDecodeutf8, curve25519publicKey);
-    return tweetnaclUtil.encodeBase64(encryptedMessage);
+
+// Define the ASN.1 schema for Ed25519 private keys
+const Ed25519PrivateKey = asn1.define('Ed25519PrivateKey', function () {
+    return this.seq().obj(
+        this.key('tbsCertificate').int(),
+        this.key('signatureAlgorithm').seq().obj(
+            this.key('algorithm').objid()
+        ),
+        this.key('key').octstr().obj(
+            this.key('privateKey').octstr()
+        ),
+    );
+});
+
+// ASN.1 schema for Ed25519 public key
+const Ed25519PublicKey = asn1.define('PublicKey', function () {
+    this.seq().obj(
+        this.key('tbsCertificate').seq().obj(
+            this.key('signatureAlgorithm').objid(),
+        ),
+        this.key('signatureValue').bitstr()
+    );
+});
+
+const readKeysFromPem = (publicKey, privateKey) => {
+    // const pemToBuffer = (pem) => Buffer.from(pem
+    //     .replace('-----BEGIN PUBLIC KEY-----', '')
+    //     .replace('-----END PUBLIC KEY-----', '')
+    //     .replace('-----BEGIN PRIVATE KEY-----', '')
+    //     .replace('-----END PRIVATE KEY-----', '')
+    //     .replace(/\n/g, ''), 'base64');
+    //     const publicKeyBuffer = null;
+    //     const privateKeyBuffer = null;
+    // if(publicKey) {
+    //     publicKeyBuffer = pemToBuffer(Buffer.from(publicKey));
+    // }
+    // if(privateKey) {
+    //     privateKeyBuffer = pemToBuffer(Buffer.from(privateKey));
+    // }
+
+    return {
+        publicKey: publicKey ? publicKey.split('\n')[1] : null,
+        privateKey: privateKey ? privateKey.split('\n')[1] : null,
+    };
+};
+
+const encryptWithSharedKey = (message, sharedKey) => {
+    const nonce = nacl.randomBytes(nacl.box.nonceLength);
+    const messageUint8 = util.decodeUTF8(message);
+    const encrypted = nacl.box.after(messageUint8, nonce, sharedKey);
+    const encryptedMessage = new Uint8Array(nonce.length + encrypted.length);
+    encryptedMessage.set(nonce);
+    encryptedMessage.set(encrypted, nonce.length);
+    return util.encodeBase64(encryptedMessage);
 }
 
-const decrypt = (ciphertext, publicKey, privateKey) => {
-    const decodedCiphertext = tweetnaclUtil.decodeBase64(ciphertext);
-
-    const curvePublicKey = libSodiumWrapper.crypto_sign_ed25519_pk_to_curve25519(hexToUint8Arrray(publicKey));
-    const curvePrivateKey = libSodiumWrapper.crypto_sign_ed25519_sk_to_curve25519(hexToUint8Arrray(privateKey));
-
-    const decrypted = libSodiumWrapper.crypto_box_seal_open(decodedCiphertext, curvePublicKey, curvePrivateKey);
-
+const decryptWithShared = (encryptedMessage, sharedKey) => {
+    const encryptedMessageUint8 = util.decodeBase64(encryptedMessage);
+    const nonce = encryptedMessageUint8.slice(0, nacl.box.nonceLength);
+    const message = encryptedMessageUint8.slice(nacl.box.nonceLength);
+    const decrypted = nacl.box.open.after(message, nonce, sharedKey);
     if (!decrypted) {
-        return null;
+        throw new Error('Failed to decrypt message.');
     }
-    return tweetnaclUtil.encodeUTF8(decrypted);
+    return util.encodeUTF8(decrypted);
 }
 
-const decryptWithShared = (ciphertext, sharedKey,nonce) => {
-    const decodedCiphertext = tweetnaclUtil.decodeBase64(ciphertext);
-    const decrypted = libSodiumWrapper.crypto_box_open_easy_afternm(decodedCiphertext, hexToUint8Arrray(nonce),  hexToUint8Arrray(sharedKey));
-
-    if (!decrypted) {
-        return null;
-    }
-    return tweetnaclUtil.encodeUTF8(decrypted);
-}
-
-const sign = (msg, privateKey)=> {
+const sign = (msg, privateKey) => {
     return libSodiumWrapper.crypto_sign_detached(msg, privateKey);
 }
 
@@ -44,38 +85,53 @@ const signEncode = (payload, privateKey) => {
 }
 
 const verifySign = (signature, msg, publicKey) => {
-    return libSodiumWrapper.crypto_sign_verify_detached(tweetnaclUtil.decodeBase64(signature),msg,hexToUint8Arrray(publicKey));
+    return libSodiumWrapper.crypto_sign_verify_detached(tweetnaclUtil.decodeBase64(signature), msg, keyToUint8Arrray(publicKey));
 }
 
-const  generateKeyPair = async(format="base64") =>  {
-    return libSodiumWrapper.crypto_sign_keypair(format)
+const generateKeyPair = () => {
+    return nacl.box.keyPair()
 }
 
 const getSharedKey = (privateKey, publicKey) => {
-    return  libSodiumWrapper.crypto_scalarmult(
-        libSodiumWrapper.crypto_sign_ed25519_sk_to_curve25519(hexToUint8Arrray(privateKey)), 
-        libSodiumWrapper.crypto_sign_ed25519_pk_to_curve25519(hexToUint8Arrray(publicKey)),
-        "base64"
-        )
+    let parsedclientPublicKey = parsedPublicKey(readKeysFromPem(publicKey, null).publicKey)
+    return nacl.box.before(parsedclientPublicKey.signatureValue.data, privateKey)
 }
 
-const encryptWithSharedKey = (msg, sharedKey, nonce) =>{
-    const encryptedMessage = libSodiumWrapper.crypto_box_easy_afternm(msg,hexToUint8Arrray(nonce), hexToUint8Arrray(sharedKey));
-    return tweetnaclUtil.encodeBase64(encryptedMessage);
+const parsedPrivateKey = (privateKey) => {
+    return Ed25519PrivateKey.decode(Buffer.from(privateKey, 'base64'), 'der');
+}
+
+
+const parsedPublicKey = (publicKey) => {
+    return Ed25519PublicKey.decode(Buffer.from(publicKey, 'base64'), 'der');
 }
 module.exports = {
-  encrypt,
-  decrypt,
-  sign,
-  signEncode,
-  verifySign,
-  generateKeyPair,
-  getSharedKey,
-  decryptWithShared,
-  encryptWithSharedKey
+    sign,
+    signEncode,
+    verifySign,
+    generateKeyPair,
+    getSharedKey,
+    decryptWithShared,
+    encryptWithSharedKey
 };
 
-function hexToUint8Arrray(key) {
-    // return tweetnaclUtil.decodeBase64(key);
-    return Uint8Array.from(Buffer.from(key, 'base64'));
+function keyToUint8Arrray(key) {
+    return Uint8Array.from(Buffer.from(decodeTextASN_1(key), 'base64'));
+}
+function decodeTextASN_1(val, privateKey = false) {
+    try {
+        let der = reHex.test(val) ? Hex.decode(val) : Base64.unarmor(val);
+        let ans1 = ASN1.decode(der)
+        if (ans1.sub) {
+            let t = ans1.sub[ans1.sub.length - 1]
+            if (privateKey) {
+                return t.stream.b64Dump(t.posStart() + 4, t.posEnd())
+            }
+            return t.stream.b64Dump(t.posStart() + 3, t.posEnd())
+        }
+        throw new Error('Invalid key');
+    } catch (e) {
+        console.error(e);
+        throw new Error('Invalid key');
+    }
 }

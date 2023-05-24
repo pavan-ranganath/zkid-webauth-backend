@@ -25,6 +25,9 @@ const entradaMethodCreateUser = async (userBody) => {
   if (await EntradaCustomUser.isEmailTaken(userBody.username)) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Username already registered');
   }
+  if (await EntradaCustomUser.isPublicKeyTaken(userBody.publicKey)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Public key already exists');
+  }
   return EntradaCustomUser.create(userBody);
 };
 
@@ -57,9 +60,12 @@ const checkEmailExists = async (email) =>{
   }
 }
 
-const checkEmailEntradaCustomUser = async (email) =>{
+const checkEmailEntradaCustomUser = async (email,publicKey) =>{
   if (await EntradaCustomUser.isEmailTaken(email)) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Email already taken');
+  }
+  if (await EntradaCustomUser.isPublicKeyTaken(publicKey)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Public key already exists');
   }
 }
 
