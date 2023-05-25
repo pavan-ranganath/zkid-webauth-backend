@@ -73,7 +73,7 @@ const entradaAuthRegistrationVerify = {
 const entradaAuthLogin = {
   body: Joi.object().keys({
     username: Joi.string().email().required(),
-    signedMsg: Joi.string().required(),
+    signature: Joi.string().required(),
     plainMsg: Joi.string().required(),
   }),
 };

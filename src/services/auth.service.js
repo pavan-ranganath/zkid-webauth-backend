@@ -128,8 +128,10 @@ const checkEmailExists = async (email) => {
 const loginUsingPublicKey = async (username, plainMsg, signedMsg) => {
   await userService.checkEmailEntradaCustomUser(username);
   let user = await userService.getEntradaAuthUserByEmail(username)
+
   // VERIFY SIGNATURE USING USER PUBLIC KEY
-  if (!verifySign(signedMsg, plainMsg, (user.publicKey))) {
+  const clientPublicKey = readOpenSslPublicKeys(user.publicKey)
+  if (!verifySign(signedMsg, plainMsg, clientPublicKey)) {
     throw new ApiError(httpStatus.UNAUTHORIZED, "Signature verification failed");
   }
 
@@ -140,7 +142,16 @@ const loginUsingPublicKey = async (username, plainMsg, signedMsg) => {
     // throw new ApiError(httpStatus.UNAUTHORIZED, 'Please verify your email address');
   }
 
-  return user
+  //GENERTE EPHEMERAL KEY
+  const ephemeralKeyPair = generateKeyPair("base64");
+
+  // ED25519 -> curve25519
+  const clientCurve25519PublicKey = convertEd25519PublicKeyToCurve25519(clientPublicKey)
+  const ServerCurve25519PrivateKey = convertEd25519PrivateKeyToCurve25519(ephemeralKeyPair.secretKey)
+
+  // GENERATE SHARED SECRET
+  const sharedKey = getSharedKey(ServerCurve25519PrivateKey, clientCurve25519PublicKey);
+  return {user, ephemeralKeyPair, sharedKey}
 };
 
 async function entradaAuthRegistration(body, username, req) {
@@ -165,7 +176,7 @@ async function entradaAuthRegistration(body, username, req) {
 
   //GENERTE EPHEMERAL KEY
   const ephemeralKeyPair = generateKeyPair();
-  console.log("serverPrivateKey",Buffer.from(ephemeralKeyPair.secretKey).toString('base64'));
+  console.log("serverPrivateKey", Buffer.from(ephemeralKeyPair.secretKey).toString('base64'));
   console.log("serverPublicKey", Buffer.from(ephemeralKeyPair.publicKey).toString('base64'));
 
   // ED25519 -> curve25519
@@ -185,7 +196,7 @@ async function entradaAuthRegistration(body, username, req) {
   // CREATE SESSION
   req.session.user = { ...body, userId: userId, challenge: challenge };
   req.session.keystore = {
-    publicKey:  Buffer.from(ephemeralKeyPair.publicKey).toString('base64'),
+    publicKey: Buffer.from(ephemeralKeyPair.publicKey).toString('base64'),
     privateKey: Buffer.from(ephemeralKeyPair.secretKey).toString('base64'),
     sharedKey: Buffer.from(sharedKey).toString('base64')
   };

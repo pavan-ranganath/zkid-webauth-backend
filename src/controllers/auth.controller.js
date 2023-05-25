@@ -288,23 +288,16 @@ const EntadaAuthLogin = catchAsync(async (req, res) => {
   const body = req.body;
   const username = body.username;
   const plainMsg = body.plainMsg;
-  const signedMsg = body.signedMsg;
-  let user = await authService.loginUsingPublicKey(username, plainMsg, signedMsg);
-  const userPublicKey = (user.publicKey);
+  const signature = body.signature;
+  let {user, ephemeralKeyPair, sharedKey} = await authService.loginUsingPublicKey(username, plainMsg, signature);
 
-  //GENERTE EPHEMERAL KEY
-  const ephemeralKeyPair =  generateKeyPair("base64");
-
-  // GENERATE SHARED SECRET
-  const sharedKey = getSharedKey(ephemeralKeyPair.privateKey, userPublicKey);
-
+  
   // CREATE SESSION
   req.session.user = user
   req.session.keystore = { ephemeralKeyPair: ephemeralKeyPair, sharedKey }
 
-
   const respObj = {
-    ephemeralPubKey: (ephemeralKeyPair.publicKey),
+    ephemeralPubKey: Buffer.from(ephemeralKeyPair.publicKey).toString('base64'),
     user: user
   }
   return res.status(200).send({ status: "success", ...respObj })
